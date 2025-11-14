@@ -31,7 +31,7 @@ Deltahack is a sleek, simple Deltamath cheat that simply extracts page content, 
 ### Bookmarklet
 Simply copy the code below into the URL section of a bookmark, then click the bookmark when you're on Deltamath.
 ```js
-javascript:(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/fowntain/deltahack@main/minified.js';document.body.appendChild(s);})();
+javascript:(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/fowntain/deltahack@main/minified.js?t='+(Date.now());document.body.appendChild(s);})();
 ````
 
 ### Console
