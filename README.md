@@ -1,12 +1,12 @@
 <div align="center">
   
   <h1>Deltahack</h1> 
-  <img width="509" height="273" alt="CnP_13112025_212434-removebg-preview (1)" src="https://github.com/user-attachments/assets/fba9b960-fc4c-44af-ad03-dfa5b83e02e5" />
 
 
-  <br />
 
   ![](https://dcbadge.limes.pink/api/server/https://discord.gg/unblocking?compact=true)
+  <br />
+  <img width="509" height="273" alt="CnP_13112025_212434-removebg-preview (1)" src="https://github.com/user-attachments/assets/fba9b960-fc4c-44af-ad03-dfa5b83e02e5" />
 </div>
 
 ## Overview
