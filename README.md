@@ -1,6 +1,6 @@
 <div align="center">
   
-  <h1>Deltahack</h1> 
+  <h1>Deltahack v0.2</h1> 
 
 
 
@@ -21,6 +21,7 @@ Deltahack is a sleek, simple Deltamath cheat that simply extracts page content, 
 - **Performance:** Fast, lightweight, and highly responsive.
 - **Simplicity:** Easy-to-use UI that literally a baby could figure out
 - **Customization:** Allows the user to set custom keybinds, token limits, explanations, and more to come.
+- **Smart Auto-Check:** Automatically scans only when new answer input box/boxes appear (not when post-submit explanations update).
 
 ---
 
