@@ -42,7 +42,18 @@
       localStorage.getItem("math_scanner_explanations") === "true",
     hideKeybind: localStorage.getItem("math_scanner_hide_keybind") || "ctrl+e",
     isHidden: false,
+    isScanning: false,
+    autoCheckEnabled:
+      localStorage.getItem("math_scanner_auto_check") !== "false",
+    answerInputSignature: "",
+    questionObserver: null,
+    pollingIntervalId: null,
+    mutationDebounceId: null,
+    lastAutoScanAt: 0,
   };
+
+  const AUTO_SCAN_COOLDOWN_MS = 2200;
+  const AUTO_CHECK_INTERVAL_MS = 1500;
 
   function evaluateMathExpressions(answer) {
     console.log("Deltahack: Evaluating math expressions...");
@@ -602,6 +613,12 @@
   }
 
   async function scanPage() {
+    if (state.isScanning) {
+      console.log("Deltahack: Scan skipped because a scan is already running.");
+      return;
+    }
+
+    state.isScanning = true;
     console.log("Deltahack: 'Scan Page' clicked.");
     const scanBtn = document.querySelector(".scan-btn");
     if (scanBtn) {
@@ -637,7 +654,159 @@
     } catch (error) {
       console.error("Deltahack: Scan error:", error);
       showResult("Error: " + error.message, true);
+    } finally {
+      state.isScanning = false;
     }
+  }
+
+  function getActivePageDocument() {
+    const iframe = document.querySelector("iframe.tool_launch");
+    if (iframe && iframe.contentDocument && iframe.contentDocument.body) {
+      return iframe.contentDocument;
+    }
+    return document;
+  }
+
+  function isUsableInput(element) {
+    if (!element || !element.isConnected) {
+      return false;
+    }
+
+    const elementWindow = element.ownerDocument?.defaultView || window;
+    const HTMLElementCtor = elementWindow.HTMLElement || HTMLElement;
+
+    if (!(element instanceof HTMLElementCtor)) {
+      return false;
+    }
+
+    const style = elementWindow.getComputedStyle(element);
+    if (
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      element.offsetParent === null
+    ) {
+      return false;
+    }
+
+    if (element.matches("input")) {
+      const type = (element.getAttribute("type") || "text").toLowerCase();
+      if (["hidden", "button", "submit", "reset", "image"].includes(type)) {
+        return false;
+      }
+    }
+
+    if (element.disabled || element.readOnly) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function getAnswerInputSignature() {
+    const doc = getActivePageDocument();
+    const candidates = Array.from(
+      doc.querySelectorAll('input, textarea, [contenteditable="true"]')
+    );
+
+    const usableInputs = candidates.filter((element) => isUsableInput(element));
+
+    if (!usableInputs.length) {
+      return "";
+    }
+
+    const signature = usableInputs
+      .map((element, index) => {
+        const tag = element.tagName.toLowerCase();
+        const type = (element.getAttribute("type") || "").toLowerCase();
+        const id = element.id || "";
+        const name = element.getAttribute("name") || "";
+        const inputMode = element.getAttribute("inputmode") || "";
+        const ariaLabel = element.getAttribute("aria-label") || "";
+        const cls = element.className || "";
+        return [tag, type, id, name, inputMode, ariaLabel, cls, index].join("|");
+      })
+      .join(";;");
+
+    return `${usableInputs.length}::${signature}`;
+  }
+
+  function maybeAutoScan(reason) {
+    if (!state.autoCheckEnabled || !CONFIG.GEMINI_API_KEY || state.isScanning) {
+      return;
+    }
+
+    const nextSignature = getAnswerInputSignature();
+    if (!nextSignature) {
+      return;
+    }
+
+    if (nextSignature === state.answerInputSignature) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - state.lastAutoScanAt < AUTO_SCAN_COOLDOWN_MS) {
+      state.answerInputSignature = nextSignature;
+      return;
+    }
+
+    state.answerInputSignature = nextSignature;
+    state.lastAutoScanAt = now;
+    console.log(`Deltahack: New answer input detected (${reason}). Auto-scanning.`);
+    scanPage();
+  }
+
+  function startAutoCheck() {
+    if (!state.autoCheckEnabled) {
+      return;
+    }
+
+    state.answerInputSignature = getAnswerInputSignature();
+
+    if (state.questionObserver) {
+      state.questionObserver.disconnect();
+    }
+
+    const observeDoc = () => {
+      const activeDoc = getActivePageDocument();
+      if (!activeDoc || !activeDoc.body) {
+        return;
+      }
+
+      state.questionObserver = new MutationObserver(() => {
+        if (state.mutationDebounceId) {
+          clearTimeout(state.mutationDebounceId);
+        }
+        state.mutationDebounceId = setTimeout(() => {
+          maybeAutoScan("mutation");
+        }, 350);
+      });
+
+      state.questionObserver.observe(activeDoc.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["class", "style", "disabled", "readonly", "type"],
+      });
+    };
+
+    observeDoc();
+
+    const iframe = document.querySelector("iframe.tool_launch");
+    if (iframe) {
+      iframe.addEventListener("load", () => {
+        state.answerInputSignature = getAnswerInputSignature();
+        observeDoc();
+        maybeAutoScan("iframe-load");
+      });
+    }
+
+    if (state.pollingIntervalId) {
+      clearInterval(state.pollingIntervalId);
+    }
+    state.pollingIntervalId = setInterval(() => {
+      maybeAutoScan("poll");
+    }, AUTO_CHECK_INTERVAL_MS);
   }
 
   async function sendToGemini(pageText) {
@@ -1069,4 +1238,5 @@
   }
 
   createUI();
+  startAutoCheck();
 })();
